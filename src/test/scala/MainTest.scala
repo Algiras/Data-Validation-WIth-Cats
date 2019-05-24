@@ -1,11 +1,8 @@
-import org.specs2.mutable.{Specification, Tables}
 import Main._
-import cats.{Applicative, ApplicativeError}
+import cats.data.Validated.{Invalid, _}
 import cats.data.{NonEmptyList, Validated}
-import cats.data.Validated.{Invalid, Valid}
-import cats.instances.option._
-import cats.data.Validated._
-import cats.instances.string._
+import cats.implicits._
+import org.specs2.mutable.{Specification, Tables}
 
 class MainTest extends Specification with Tables {
   "isValidEmail validates if the email is valid" >> {
@@ -33,7 +30,7 @@ class MainTest extends Specification with Tables {
       }
   }
 
-  "validateUserLv0 validates if user is a valid user or throws" >> {
+  "validateUserVersion0 validates if user is a valid user or throws" >> {
     // @formatter:off
       "email"              | "password"       || "is valid" |>
       "ak@email.com"       !(null: String)    !! false      |
@@ -47,15 +44,15 @@ class MainTest extends Specification with Tables {
         case (email, password, isValid) => {
           val user = UserDTO(email, password)
         if (isValid) {
-          validateUserLv0(user) must_=== user
+          validateUserVersion0(user) must_=== user
         } else {
-          validateUserLv0(user) must throwA[UserValidationException]
+          validateUserVersion0(user) must throwA[UserValidationException]
         }
       }
     }
   }
 
-  "validateUserLv1 validates if user is a valid user" >> {
+  "validateUserVersion1 validates if user is a valid user" >> {
     // @formatter:off
       "email"              | "password"     || "is valid" |>
         "ak@email.com"     ! (null: String) !! false      |
@@ -68,12 +65,12 @@ class MainTest extends Specification with Tables {
       // @formatter:on
         case (email, password, isValid) => {
           val user = UserDTO(email, password)
-        validateUserLv1(user) must (if (isValid) beSome(User.fromUserDTO(user)) else beNone)
+        validateUserVersion1(user) must_=== (if (isValid) User.fromUserDTO(user) else None)
       }
     }
   }
 
-  "validateUserLv2 validates if user is a valid user or returns Left error" >> {
+  "validateUserVersion2 validates if user is a valid user or returns Left error" >> {
     // @formatter:off
       "email"              | "password"       || "is valid" |>
       "ak@email.com"       !(null: String)    !! false      |
@@ -86,12 +83,12 @@ class MainTest extends Specification with Tables {
         // @formatter:on
         case (email, password, isValid) => {
           val user = UserDTO(email, password)
-        validateUserLv2(user) must (if (isValid) beRight(User.fromUserDTO(user)) else beLeft)
+        validateUserVersion2(user) must_=== (if (isValid) User.fromUserDTO(user).toRight(???) else Left(userError))
       }
     }
   }
 
-  "validateUserLv3 validates if user is a valid user or returns Left error" >> {
+  "validateUserVersion3 validates if user is a valid user or returns Left error" >> {
     // @formatter:off
       "email"              | "password"       || "error"                                |>
       "ak@email.com"       !(null: String)    !! Some(passwordError)                    |
@@ -101,13 +98,13 @@ class MainTest extends Specification with Tables {
       // @formatter:on
         case (email, password, error) => {
           val user = UserDTO(email, password)
-        validateUserLv3(user) must_=== (if (error.isEmpty) Right(User.fromUserDTO(user))
+        validateUserVersion3(user) must_=== (if (error.isEmpty) User.fromUserDTO(user).toRight(???)
                                         else Left(error.get))
       }
     }
   }
 
-  "validateUserLv4 validates if user is a valid user or returns Left error" >> {
+  "validateUserVersion4 validates if user is a valid user or returns Left error" >> {
     // @formatter:off
       "email"              | "password"       || "error"                                |>
       "ak@email.com"       !(null: String)    !! Some(passwordError)                    |
@@ -117,13 +114,13 @@ class MainTest extends Specification with Tables {
       // @formatter:on
         case (email, password, error) => {
           val user = UserDTO(email, password)
-        validateUserLv4(user) must_=== (if (error.isEmpty) Right(User.fromUserDTO(user))
+        validateUserVersion4(user) must_=== (if (error.isEmpty) User.fromUserDTO(user).toRight(???)
                                         else Left(error.get))
       }
     }
   }
 
-  "validateUserLv5 validates if user is a valid user or returns Left error" >> {
+  "validateUserVersion5 validates if user is a valid user or returns Left error" >> {
     // @formatter:off
       "email"              | "password"       || "error"                                |>
       "ak@email.com"       !(null: String)    !! Some(passwordError)                    |
@@ -133,66 +130,62 @@ class MainTest extends Specification with Tables {
       // @formatter:on
         case (email, password, error) => {
           val user = UserDTO(email, password)
-        validateUserLv5(user) must_=== (if (error.isEmpty) Valid(User.fromUserDTO(user))
+        validateUserVersion5(user) must_=== (if (error.isEmpty) User.fromUserDTO(user).toValid(???)
                                         else Invalid(error.get))
       }
     }
   }
 
-  "validateUserLv6 validates if user is a valid user or returns Left error" >> {
+  "validateUserVersion6 validates if user is a valid user or returns Left error" >> {
     // @formatter:off
-      "email"              | "password"       || "error"                                             |>
-      "ak@email.com"       !(null: String)    !! Some(NonEmptyList(passwordError, List.empty))       |
-      (null: String)       !"asdfga"          !! Some(NonEmptyList(emailError, List.empty))          |
-      (null: String)       !(null: String)    !! Some(NonEmptyList(emailError, List(passwordError))) |
-      "bart@simsom.com"    !"asdf12"          !! Some(NonEmptyList(evilUserError, List.empty))       |
-      "ak@email.com"       !"asdf12"          !! None                                                |> {
+      "email"              | "password"       || "error"                                                                      |>
+      "ak@email.com"       !(null: String)    !! Some(NonEmptyList.of(PasswordValidationError))                               |
+      (null: String)       !"asdfga"          !! Some(NonEmptyList.of(InvalidEmailError))                                     |
+      (null: String)       !(null: String)    !! Some(NonEmptyList(InvalidEmailError, List(PasswordValidationError)))         |
+      "bart@simsom.com"    !"asdf12"          !! Some(NonEmptyList.of(BlackListedUserError))                                  |
+      "ak@email.com"       !"asdf12"          !! None                                                                         |> {
       // @formatter:on
         case (email, password, error) => {
           val user = UserDTO(email, password)
-        validateUserLv6(user) must_=== (if (error.isEmpty) Valid(User.fromUserDTO(user))
+        validateUserVersion6(user) must_=== (if (error.isEmpty) User.fromUserDTO(user).toValid(???)
                                         else Invalid(error.get))
       }
     }
   }
 
-  "validateUserLv7 validates if user is a valid user or returns an error" >> {
+  "validateUserVersion7 validates if user is a valid user or returns an error" >> {
     // @formatter:off
       "email"              | "password"       || "error"                                                                 |>
-      "ak@email.com"       !(null: String)    !! Some(NonEmptyList(PasswordValidationError, List.empty))                 |
-      (null: String)       !"asdfga"          !! Some(NonEmptyList(EmailValidationError, List.empty))                    |
-      (null: String)       !(null: String)    !! Some(NonEmptyList(EmailValidationError, List(PasswordValidationError))) |
+      "ak@email.com"       !(null: String)    !! Some(NonEmptyList.of(PasswordValidationError))                          |
+      (null: String)       !"asdfga"          !! Some(NonEmptyList.of(InvalidEmailError))                                |
+      (null: String)       !(null: String)    !! Some(NonEmptyList(InvalidEmailError, List(PasswordValidationError)))    |
+      "bart@simsom.com"    !"asdf12"          !! Some(NonEmptyList.of(BlackListedUserError))                             |
       "ak@email.com"       !"asdf12"          !! None                                                                    |> {
       // @formatter:on
         case (email, password, error) => {
           val user = UserDTO(email, password)
 
-          implicit def stringToOptError(error: UserError): Unit = Unit
-          validateUserLv7[Option, Unit](user) must_=== (if(error.isEmpty) Some(User.fromUserDTO(user)) else None)
+          implicit def stringToOptError(error: NonEmptyList[UserError]): Unit = ()
+          val optValidation = validateUserVersion7[Option, Unit]
+          optValidation(user) must_=== (if(error.isEmpty)
+            User.fromUserDTO(user)
+          else None)
 
-          implicit def userErrorToInvalidError[T](error: UserError): NonEmptyList[UserError] = NonEmptyList(error, List.empty)
-          validateUserLv7[Validated[NonEmptyList[UserError], ?], NonEmptyList[UserError]](user) must_=== (if(error.isEmpty) Valid(User.fromUserDTO(user)) else Invalid(error.get))
+          val validatedValidation = validateUserVersion7[Validated[NonEmptyList[UserError], ?], NonEmptyList[UserError]]
+           validatedValidation(user) must_=== (
+            if(error.isEmpty)
+              User.fromUserDTO(user).toValid(???)
+            else
+              Invalid(error.get))
+
+          val eitherValidation = validateUserVersion7[Either[NonEmptyList[UserError], ?], NonEmptyList[UserError]]
+          eitherValidation(user) must_=== (
+            if(error.isEmpty)
+              User.fromUserDTO(user).toRight(???)
+            else
+              Left(error.get)
+          )
         }
       }
-  }
-
-  implicit def nonEmptyListError[T](implicit ev: Applicative[Validated[NonEmptyList[T], ?]]) = new ApplicativeError[Validated[NonEmptyList[T], ?], NonEmptyList[T]] {
-    override def raiseError[A](e: NonEmptyList[T]): Validated[NonEmptyList[T], A] = Invalid(e)
-    override def handleErrorWith[A](
-        fa: Validated[NonEmptyList[T], A])(
-        f: NonEmptyList[T] => Validated[
-          NonEmptyList[T],
-          A]): Validated[NonEmptyList[T], A] = fa match {
-      case value@Valid(_) => value
-      case Invalid(error) => f(error)
-    }
-
-    override def pure[A](x: A): Validated[NonEmptyList[T], A] = ev.pure(x)
-
-    override def ap[A, B](
-  ff: Validated[NonEmptyList[T],
-                                       A => B])(
-        fa: Validated[NonEmptyList[T], A])
-      : Validated[NonEmptyList[T], B] = ev.ap(ff)(fa)
   }
 }
