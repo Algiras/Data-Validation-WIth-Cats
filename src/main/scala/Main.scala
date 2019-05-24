@@ -1,5 +1,5 @@
 import cats.ApplicativeError
-import cats.data.{NonEmptyList, Validated}
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.implicits._
 
 import scala.language.higherKinds
@@ -92,25 +92,21 @@ object Main extends App {
 
   lazy val blackListedUsers = Seq("bart@simsom.com")
 
-  private def validateEmailAndEvilness(email: Email): Validated[NonEmptyList[UserError], Email] =
+  private def validateEmailAndEvilness(email: Email): ValidatedNel[UserError, Email] =
     Validated.condNel(!blackListedUsers.contains(email.value), email, BlackListedUserError)
 
 
-  def validateUserVersion6(user: UserDTO): Validated[NonEmptyList[UserError], User] = (
+  def validateUserVersion6(user: UserDTO): ValidatedNel[UserError, User] = (
       Email(user.email)
-        .toValid(NonEmptyList.of(InvalidEmailError))
-        .andThen(validateEmailAndEvilness),
-      Password(user.password)
-        .toValid(NonEmptyList.of(PasswordValidationError))
+        .toValidNel(InvalidEmailError).andThen(validateEmailAndEvilness),
+      Password(user.password).toValidNel(PasswordValidationError)
     ).mapN(User(_, _))
 
   def validateUserVersion7[F[_], E](implicit ev: ApplicativeError[F, E],
                                evTransform: NonEmptyList[UserError] => E): UserDTO => F[User] = user =>
     ev.fromValidated((
-        Email(user.email)
-          .toValid(NonEmptyList.of(InvalidEmailError))
+        Email(user.email).toValidNel(InvalidEmailError)
           .andThen(validateEmailAndEvilness),
-        Password(user.password)
-          .toValid(NonEmptyList.of(PasswordValidationError))
+        Password(user.password).toValidNel(PasswordValidationError)
       ).mapN(User(_, _)).leftMap(evTransform))
 }

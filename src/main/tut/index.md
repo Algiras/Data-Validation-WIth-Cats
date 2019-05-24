@@ -56,7 +56,7 @@ case class Password(value: String)
 object Password {
   def apply(password: String): Option[Password] = 
     Some(password).filter(isValidPassword).map(new Password(_))
-  }
+}
 
 case class User(email: Email, password: Password)
 
@@ -125,6 +125,7 @@ def validateUserVersion5(user: UserDTO): Validated[String, User] = (
 
 ```tut:silent
 import cats.data.NonEmptyList
+import cats.data.ValidatedNel
 
 sealed trait UserError
 final case object PasswordValidationError extends UserError
@@ -135,20 +136,17 @@ final case object BlackListedUserError extends EmailError
 
 val blackListedUsers = Seq("bart@simsom.com")
 
-def validateEmailAndEvilness(email: Email)
-    : Validated[NonEmptyList[UserError], Email] =
-  Validated.condNel(!blackListedUsers.contains(email.value), 
-                    email, 
-                    BlackListedUserError)
+def validatedEvilness(email: Email): ValidatedNel[UserError, Email] =
+ Validated.condNel(!blackListedUsers.contains(email.value), 
+                   email, 
+                   BlackListedUserError)
 
-def validateUserVersion6(user: UserDTO): 
-   Validated[NonEmptyList[UserError], User] = (
-    Email(user.email)
-      .toValid(NonEmptyList.of(InvalidEmailError))
-      .andThen(validateEmailAndEvilness),
-    Password(user.password)
-      .toValid(NonEmptyList.of(PasswordValidationError))
-  ).mapN(User(_, _))
+
+def validateUserVersion6(user: UserDTO): ValidatedNel[UserError, User] = (
+  Email(user.email).toValidNel(InvalidEmailError)
+                   .andThen(validatedEvilness),
+  Password(user.password).toValidNel(PasswordValidationError)
+).mapN(User(_, _))
 ```
 ---
 
@@ -162,29 +160,13 @@ Lifting the error to **F[_]**
 
 # Version 7 Generalizing
 
-```tut:silent
-import cats.ApplicativeError
+```tut
 
-def validateUserVersion7[F[_], E](
-        implicit ev: ApplicativeError[F, E],
-        evTransform: NonEmptyList[UserError] => E): UserDTO => F[User] = user =>
-  ev.fromValidated((
-    Email(user.email)
-      .toValid(NonEmptyList.of(InvalidEmailError))
-      .andThen(validateEmailAndEvilness),
-    Password(user.password)
-      .toValid(NonEmptyList.of(PasswordValidationError))
-  ).mapN(User(_, _)).leftMap(evTransform))
+def validateUserVersion1(user: UserDTO) = 
+    validateUserVersion6(user).toOption
 
-implicit def stringToOptError(error: NonEmptyList[UserError]): Unit = ()
-val validateUserVersion1 = validateUserVersion7[Option, Unit]
-
-val validateUserVersion3 = validateUserVersion7[
-                            Validated[NonEmptyList[UserError], ?], 
-                            NonEmptyList[UserError]]
-val validateUserVersion6 = validateUserVersion7[
-                            Either[NonEmptyList[UserError], ?], 
-                            NonEmptyList[UserError]]
+def validateUserVersion3(user: UserDTO) = 
+    validateUserVersion6(user).toEither
 ```
 
 ---
