@@ -5,14 +5,14 @@ class: center, middle
 
 **By:** Algimantas Krasauskas
 
-**From:** Wix People Team
+**From:** Wix.com
 
 ![cato](images/cato.gif "Cato")
 
 ---
 # The Problem
 
-We got a requirement to validate user data coming from a Front End Registration form
+We need to integrate with an external API that provides us with an email and password that both might be invalid. After this data is validated we need to use in a workflow.
 
 ```tut:silent
 case class UserDTO(email: String, password: String)
@@ -24,7 +24,7 @@ def isValidPassword(password: String): Boolean = ???
 ---
 # Version 0 Naive Implementation
 
-Naive implementation that just throws, when validation fails
+Going the path of least resistance we choose to validate our users email and password and throw an exception when it fails.
 
 ```tut:silent
 class UserValidationException extends Exception("User validation exception")
@@ -75,6 +75,8 @@ def validateUserVersion1(user: UserDTO): Option[User] = User.fromUserDTO(user)
 ---
 #  Version 2 Transforming to Either
 
+Informing about the correct type of failure in our computation.
+
 ```tut:silent
 val userError = "User validation error"
 def validateUserVersion2(user: UserDTO): Either[String, User] = 
@@ -100,6 +102,8 @@ def validateUserVersion3(user: UserDTO): Either[String, User] = (
 ```
 ---
 # Version 4 Simplify Syntax
+
+Using more familiar `for` comprehension syntax.
 
 ```tut:silent
 def validateUserVersion4(user: UserDTO): Either[String, User] = for {
@@ -152,22 +156,22 @@ def validateUserVersion6(user: UserDTO): ValidatedNel[UserError, User] = (
 
 # Version 7 Generalizing
 
-Lifting the error to **F[_]**
+```tut:silent
+def validateUserVersion1(user: UserDTO) = validateUserVersion6(user).toOption
 
-<img src="images/lift.gif" style="display: block; margin-left: auto;margin-right: auto; width: 75%;"/>
+def validateUserVersion3(user: UserDTO) = validateUserVersion6(user).toEither
+```
 
 ---
+# Additional information
 
-# Version 7 Generalizing
+Inspired by: https://youtu.be/P8nGAo3Jp-Q @DanielaSfregola
 
-```tut
+Additional keywords: ApplicativeError, MonadError
 
-def validateUserVersion1(user: UserDTO) = 
-    validateUserVersion6(user).toOption
+Github: https://github.com/Algiras/Data-Validation-With-Cats
 
-def validateUserVersion3(user: UserDTO) = 
-    validateUserVersion6(user).toEither
-```
+Binder: https://bit.ly/31H97KW
 
 ---
 
